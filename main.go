@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -17,20 +18,40 @@ import (
 var Version = "dev"
 
 func main() {
-	var rootCmd = &cobra.Command{
-		Use:   "aigit",
-		Short: "Generate git commit message including title and body",
-		Long:  `AI Git Commi streamlines the git commit process by automatically generating meaningful and standardized commit messages.`,
+	var versionFlag bool
+	rootCmd := &cobra.Command{
+		Use:                "aigit",
+		Short:              "Generate git commit message including title and body",
+		Long:               `AI Git Commi streamlines the git commit process by automatically generating meaningful and standardized commit messages.`,
+		DisableFlagParsing: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			versionFlags := []string{"-version", "-v", "--version"}
+			for _, flag := range versionFlags {
+				if slices.Contains(args, flag) {
+					printVersion()
+					os.Exit(0)
+				}
+			}
+
+			if len(args) > 0 {
+				cmd.ParseFlags(args)
+			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			// do nothing
+		},
 	}
 
-	var authCmd = &cobra.Command{
+	rootCmd.Flags().BoolVarP(&versionFlag, "version", "v", false, "Print the version of aigit")
+
+	authCmd := &cobra.Command{
 		Use:                   "auth",
 		Short:                 "Manage LLM providers and API keys",
 		Long:                  `Manage Language Model providers and their API keys. Use subcommands to list, add, or select providers.`,
 		DisableFlagsInUseLine: true,
 	}
 
-	var authListCmd = &cobra.Command{
+	authListCmd := &cobra.Command{
 		Use:                   "list",
 		Aliases:               []string{"ls"},
 		Short:                 "List configured LLM providers",
@@ -53,7 +74,7 @@ func main() {
 		},
 	}
 
-	var authAddCmd = &cobra.Command{
+	authAddCmd := &cobra.Command{
 		Use:                   "add <provider> <api_key> [endpoint_id]",
 		Short:                 "Add or update API key for a provider",
 		Long:                  "Add or update API key for a provider. Supported providers: openai, gemini, doubao, deepseek. endpoint_id is required for Doubao provider",
@@ -101,7 +122,7 @@ func main() {
 		},
 	}
 
-	var authUseCmd = &cobra.Command{
+	authUseCmd := &cobra.Command{
 		Use:                   "use [provider]",
 		Short:                 "Set the current LLM provider",
 		Args:                  cobra.ExactArgs(1),
@@ -129,7 +150,7 @@ func main() {
 	authCmd.AddCommand(authUseCmd)
 	rootCmd.AddCommand(authCmd)
 
-	var commitCmd = &cobra.Command{
+	commitCmd := &cobra.Command{
 		Use:   "commit",
 		Short: "Generate git commit message including title and body",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -268,28 +289,13 @@ func main() {
 
 	rootCmd.AddCommand(commitCmd)
 
-	var versionCmd = &cobra.Command{
+	versionCmd := &cobra.Command{
 		Use:     "version",
-		Aliases: []string{"v", "-v", "-version", "--version"},
+		Aliases: []string{"v"},
 		Short:   "Print the version of aigit",
 		Long:    "Print the current version of the aigit CLI tool.",
 		Run: func(cmd *cobra.Command, args []string) {
-			if Version != "dev" {
-				fmt.Println(Version)
-				return
-			}
-
-			if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-				fmt.Println(info.Main.Version)
-				return
-			}
-
-			version, err := exec.Command("git", "describe", "--tags").Output()
-			if err != nil {
-				fmt.Println("dev")
-				return
-			}
-			fmt.Printf("%s\n", strings.TrimSpace(string(version)))
+			printVersion()
 		},
 	}
 
@@ -330,4 +336,23 @@ func generateMessage(config *llm.Config, diffOutput []byte) (string, error) {
 		commitMessage, err = llm.GenerateDoubaoCommitMessage(string(diffOutput), string(apiKey), string(endpoint))
 	}
 	return commitMessage, err
+}
+
+func printVersion() {
+	if Version != "dev" {
+		fmt.Println(Version)
+		return
+	}
+
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		fmt.Println(info.Main.Version)
+		return
+	}
+
+	version, err := exec.Command("git", "describe", "--tags").Output()
+	if err != nil {
+		fmt.Println("dev")
+		return
+	}
+	fmt.Printf("%s\n", strings.TrimSpace(string(version)))
 }
