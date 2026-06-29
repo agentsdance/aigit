@@ -90,9 +90,9 @@ func main() {
 	}
 
 	authAddCmd := &cobra.Command{
-		Use:                   "add <provider> <api_key> [endpoint_id]",
+		Use:                   "add <provider> <api_key> [model]",
 		Short:                 "Add or update API key for a provider",
-		Long:                  "Add or update API key for a provider. Supported providers: openai, gemini, doubao, deepseek, qwen. For Doubao, an optional endpoint or model ID may be given (defaults to the built-in model)",
+		Long:                  "Add or update API key for a provider. Supported providers: openai, gemini, doubao, deepseek, qwen, openai-compatible. For openai-compatible, both model and --base-url are required.",
 		DisableFlagsInUseLine: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 2 {
@@ -113,19 +113,36 @@ func main() {
 
 			// Validate provider
 			switch provider {
-			case llm.ProviderOpenAI, llm.ProviderGemini, llm.ProviderDeepseek, llm.ProviderQwen, llm.ProviderDoubao:
+			case llm.ProviderOpenAI, llm.ProviderGemini, llm.ProviderDeepseek, llm.ProviderQwen, llm.ProviderDoubao, llm.ProviderOpenAICompatible:
 				if err := config.AddProvider(provider, apiKey, args[2:]...); err != nil {
 					fmt.Printf("Error saving config: %v\n", err)
 					os.Exit(1)
 				}
 			default:
-				fmt.Printf("Unsupported provider: %s\nSupported providers are: openai, gemini, doubao, deepseek, qwen\n", provider)
+				fmt.Printf("Unsupported provider: %s\nSupported providers are: openai, gemini, doubao, deepseek, qwen, openai-compatible\n", provider)
 				os.Exit(1)
 			}
 
 			color.Green("Successfully added API key for %s", provider)
+
+			if provider == llm.ProviderOpenAICompatible {
+				baseURL, _ := cmd.Flags().GetString("base-url")
+				if baseURL == "" {
+					color.Red("--base-url is required for openai-compatible provider")
+					os.Exit(1)
+				}
+				p := config.Providers[provider]
+				p.BaseURL = baseURL
+				config.Providers[provider] = p
+				if err := config.Save(); err != nil {
+					fmt.Printf("Error saving config: %v\n", err)
+					os.Exit(1)
+				}
+			}
 		},
 	}
+
+	authAddCmd.Flags().String("base-url", "", "API base URL (required for openai-compatible provider)")
 
 	authUseCmd := &cobra.Command{
 		Use:                   "use [provider]",
@@ -159,6 +176,8 @@ func main() {
 		Use:   "commit",
 		Short: "Generate git commit message including title and body",
 		Run: func(cmd *cobra.Command, args []string) {
+			yes, _ := cmd.Flags().GetBool("yes")
+
 			// Execute git diff --cached command
 			diffOutput, err := exec.Command("git", "diff", "--cached").Output()
 			if err != nil {
@@ -168,36 +187,48 @@ func main() {
 
 			// If there are no staged changes
 			if len(diffOutput) == 0 {
-				color.Yellow("No staged changes found.")
-				stagePrompt := promptui.Select{
-					Label: "Would you like to run 'git add .' to stage all changes?",
-					Items: []string{"Yes", "No"},
-					Size:  2,
-				}
-
-				_, stageChoice, err := stagePrompt.Run()
-				if err != nil {
-					fmt.Printf("Error with prompt: %v\n", err)
-					os.Exit(1)
-				}
-
-				if stageChoice == "Yes" {
-					cmd := exec.Command("git", "add", ".")
-					if err := cmd.Run(); err != nil {
+				if yes {
+					if err := exec.Command("git", "add", ".").Run(); err != nil {
 						fmt.Printf("Error staging changes: %v\n", err)
 						os.Exit(1)
 					}
 					color.Green("All changes staged successfully!")
-
-					// Re-run git diff to get the newly staged changes
 					diffOutput, err = exec.Command("git", "diff", "--cached").Output()
 					if err != nil {
 						fmt.Printf("Error getting git diff: %v\n", err)
 						os.Exit(1)
 					}
 				} else {
-					color.Red("No changes staged. Please use 'git add' to stage your changes.")
-					os.Exit(1)
+					color.Yellow("No staged changes found.")
+					stagePrompt := promptui.Select{
+						Label: "Would you like to run 'git add .' to stage all changes?",
+						Items: []string{"Yes", "No"},
+						Size:  2,
+					}
+
+					_, stageChoice, err := stagePrompt.Run()
+					if err != nil {
+						fmt.Printf("Error with prompt: %v\n", err)
+						os.Exit(1)
+					}
+
+					if stageChoice == "Yes" {
+						cmd := exec.Command("git", "add", ".")
+						if err := cmd.Run(); err != nil {
+							fmt.Printf("Error staging changes: %v\n", err)
+							os.Exit(1)
+						}
+						color.Green("All changes staged successfully!")
+
+						diffOutput, err = exec.Command("git", "diff", "--cached").Output()
+						if err != nil {
+							fmt.Printf("Error getting git diff: %v\n", err)
+							os.Exit(1)
+						}
+					} else {
+						color.Red("No changes staged. Please use 'git add' to stage your changes.")
+						os.Exit(1)
+					}
 				}
 			}
 
@@ -223,8 +254,20 @@ func main() {
 				os.Exit(1)
 			}
 
+			if yes {
+				cmd := exec.Command("git", "commit", "-m", commitMessage)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					fmt.Printf("Error committing changes: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Println("\n" + commitMessage)
+				color.Green("✅ Successfully committed changes!")
+				return
+			}
+
 			for {
-				// Clear some space and show the message in a box
 				fmt.Println("\n📝 Generated commit message:")
 				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 				fmt.Println(commitMessage)
@@ -291,6 +334,8 @@ func main() {
 			}
 		},
 	}
+
+	commitCmd.Flags().BoolP("yes", "y", false, "Skip all confirmations and commit directly")
 
 	rootCmd.AddCommand(commitCmd)
 

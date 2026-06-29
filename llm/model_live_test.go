@@ -20,7 +20,7 @@ func TestGenerateDoubaoCommitMessageLive(t *testing.T) {
 		t.Fatalf("getting diff: %v (len=%d)", err, len(diff))
 	}
 
-	msg, err := generateDoubaoCommitMessage(string(diff), apiKey, modelID)
+	msg, err := generateDoubaoCommitMessage(string(diff), apiKey, modelID, "", true)
 	if err != nil {
 		t.Fatalf("generateDoubaoCommitMessage: %v", err)
 	}
