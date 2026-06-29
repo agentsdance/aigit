@@ -255,6 +255,9 @@ func main() {
 			}
 
 			if yes {
+				if llm.IsRawCommitJSON(commitMessage) {
+					color.Yellow("⚠️ Template parsing failed, using raw response")
+				}
 				cmd := exec.Command("git", "commit", "-m", commitMessage)
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
@@ -268,15 +271,23 @@ func main() {
 			}
 
 			for {
-				fmt.Println("\n📝 Generated commit message:")
+				isRaw := llm.IsRawCommitJSON(commitMessage)
+				if isRaw {
+					color.Yellow("\n⚠️ Template parsing failed, showing raw response:")
+				} else {
+					fmt.Println("\n📝 Generated commit message:")
+				}
 				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 				fmt.Println(commitMessage)
 				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-				fmt.Println("\n🤔 What would you like to do?")
+				items := []string{"Commit this message", "Regenerate message"}
+				if isRaw {
+					items = []string{"Use this anyway", "Regenerate message"}
+				}
 				prompt := promptui.Select{
 					Label: "Choose an action",
-					Items: []string{"Commit this message", "Regenerate message"},
+					Items: items,
 					Size:  2,
 				}
 

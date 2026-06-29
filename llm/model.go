@@ -201,6 +201,11 @@ func parseAndRenderCommit(raw string, useEmoji bool) (string, error) {
 	return renderCommitMessage(data, useEmoji), nil
 }
 
+func IsRawCommitJSON(s string) bool {
+	_, err := extractCommitData(s)
+	return err == nil
+}
+
 func extractCommitData(raw string) (*CommitData, error) {
 	cleaned := raw
 	if idx := strings.Index(cleaned, "```"); idx >= 0 {
