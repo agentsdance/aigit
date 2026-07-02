@@ -75,7 +75,7 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			fmt.Println("Configured providers:")
@@ -99,7 +99,7 @@ func main() {
 				color.Red("Not enough arguments")
 				color.Red(cmd.Long)
 				color.Red("\nUsage: aigit auth add <provider> <api_key> [endpoint_id]")
-				os.Exit(1)
+				exit(ExitInvalidArgs)
 			}
 
 			provider := strings.ToLower(args[0])
@@ -108,7 +108,7 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			// Validate provider
@@ -116,11 +116,11 @@ func main() {
 			case llm.ProviderOpenAI, llm.ProviderGemini, llm.ProviderDeepseek, llm.ProviderQwen, llm.ProviderDoubao, llm.ProviderOpenAICompatible:
 				if err := config.AddProvider(provider, apiKey, args[2:]...); err != nil {
 					fmt.Printf("Error saving config: %v\n", err)
-					os.Exit(1)
+					exit(ExitConfigSave)
 				}
 			default:
 				fmt.Printf("Unsupported provider: %s\nSupported providers are: openai, gemini, doubao, deepseek, qwen, openai-compatible\n", provider)
-				os.Exit(1)
+				exit(ExitUnsupportedProvider)
 			}
 
 			color.Green("Successfully added API key for %s", provider)
@@ -129,14 +129,14 @@ func main() {
 				baseURL, _ := cmd.Flags().GetString("base-url")
 				if baseURL == "" {
 					color.Red("--base-url is required for openai-compatible provider")
-					os.Exit(1)
+					exit(ExitUnsupportedProvider)
 				}
 				p := config.Providers[provider]
 				p.BaseURL = baseURL
 				config.Providers[provider] = p
 				if err := config.Save(); err != nil {
 					fmt.Printf("Error saving config: %v\n", err)
-					os.Exit(1)
+					exit(ExitConfigSave)
 				}
 			}
 		},
@@ -155,12 +155,12 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			if err := config.UseProvider(provider); err != nil {
 				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
+				exit(ExitUnsupportedProvider)
 			}
 
 			color.Green("Now using %s as the current provider", provider)
@@ -182,7 +182,7 @@ func main() {
 			diffOutput, err := exec.Command("git", "diff", "--cached").Output()
 			if err != nil {
 				fmt.Printf("Error getting git diff: %v\n", err)
-				os.Exit(1)
+				exit(ExitGitDiff)
 			}
 
 			// If there are no staged changes
@@ -190,13 +190,13 @@ func main() {
 				if yes {
 					if err := exec.Command("git", "add", ".").Run(); err != nil {
 						fmt.Printf("Error staging changes: %v\n", err)
-						os.Exit(1)
+						exit(ExitGitStage)
 					}
 					color.Green("All changes staged successfully!")
 					diffOutput, err = exec.Command("git", "diff", "--cached").Output()
 					if err != nil {
 						fmt.Printf("Error getting git diff: %v\n", err)
-						os.Exit(1)
+						exit(ExitGitDiff)
 					}
 				} else {
 					color.Yellow("No staged changes found.")
@@ -209,25 +209,25 @@ func main() {
 					_, stageChoice, err := stagePrompt.Run()
 					if err != nil {
 						fmt.Printf("Error with prompt: %v\n", err)
-						os.Exit(1)
+						exit(ExitPrompt)
 					}
 
 					if stageChoice == "Yes" {
 						cmd := exec.Command("git", "add", ".")
 						if err := cmd.Run(); err != nil {
 							fmt.Printf("Error staging changes: %v\n", err)
-							os.Exit(1)
+							exit(ExitGitStage)
 						}
 						color.Green("All changes staged successfully!")
 
 						diffOutput, err = exec.Command("git", "diff", "--cached").Output()
 						if err != nil {
 							fmt.Printf("Error getting git diff: %v\n", err)
-							os.Exit(1)
+							exit(ExitGitDiff)
 						}
 					} else {
 						color.Red("No changes staged. Please use 'git add' to stage your changes.")
-						os.Exit(1)
+						exit(ExitUserAbort)
 					}
 				}
 			}
@@ -235,7 +235,7 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			var provider string
@@ -251,7 +251,7 @@ func main() {
 			commitMessage, err = generateMessage(config, diffOutput)
 			if err != nil {
 				fmt.Printf("Error generating commit message: %v\n", err)
-				os.Exit(1)
+				exit(ExitLLM)
 			}
 
 			if yes {
@@ -263,7 +263,7 @@ func main() {
 				cmd.Stderr = os.Stderr
 				if err := cmd.Run(); err != nil {
 					fmt.Printf("Error committing changes: %v\n", err)
-					os.Exit(1)
+					exit(ExitGitCommit)
 				}
 				fmt.Println("\n" + commitMessage)
 				color.Green("✅ Successfully committed changes!")
@@ -294,7 +294,7 @@ func main() {
 				commitChoice, _, err := prompt.Run()
 				if err != nil {
 					fmt.Printf("Error with prompt: %v\n", err)
-					os.Exit(1)
+					exit(ExitPrompt)
 				}
 
 				switch commitChoice {
@@ -302,7 +302,7 @@ func main() {
 					cmd := exec.Command("git", "commit", "-m", commitMessage)
 					if err := cmd.Run(); err != nil {
 						fmt.Printf("Error committing changes: %v\n", err)
-						os.Exit(1)
+						exit(ExitGitCommit)
 					}
 					color.Green("\n✅ Successfully committed changes!")
 
@@ -315,7 +315,7 @@ func main() {
 					_, pushChoice, err := pushPrompt.Run()
 					if err != nil {
 						fmt.Printf("Error with prompt: %v\n", err)
-						os.Exit(1)
+						exit(ExitPrompt)
 					}
 
 					if pushChoice == "Yes" {
@@ -323,7 +323,7 @@ func main() {
 						output, err := cmd.CombinedOutput()
 						if err != nil {
 							color.Red("Error pushing changes: %v\n%s", err, output)
-							os.Exit(1)
+							exit(ExitGitPush)
 						}
 						fmt.Printf("%s", output)
 						color.Green("✅ Successfully pushed changes to remote repository!")
@@ -336,7 +336,7 @@ func main() {
 					commitMessage, err = generateMessage(config, diffOutput)
 					if err != nil {
 						fmt.Printf("Error generating commit message: %v\n", err)
-						os.Exit(1)
+						exit(ExitLLM)
 					}
 					continue
 				default:
@@ -379,7 +379,7 @@ func main() {
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		exit(ExitCommand)
 	}
 }
 
