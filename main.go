@@ -24,6 +24,10 @@ func main() {
 		Short: "Generate git commit message including title and body",
 		Long:  `AI Git Commi streamlines the git commit process by automatically generating meaningful and standardized commit messages.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			debug, _ := cmd.Flags().GetBool("debug")
+			if debug {
+				llm.Debug = true
+			}
 			updateNotice = startUpdateCheck(Version)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -375,6 +379,7 @@ func main() {
 		},
 	}
 
+	rootCmd.PersistentFlags().Bool("debug", false, "enable debug logging")
 	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -384,9 +389,17 @@ func main() {
 }
 
 func generateMessage(config *llm.Config, diffOutput []byte) (string, error) {
+	diff := processBinaryDiff(diffOutput)
+	truncated := truncateDiff(diff)
+
+	if llm.Debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] diff: original=%d bytes, after binary removal=%d, after truncation=%d\n",
+			len(diffOutput), len(diff), len(truncated))
+	}
+
 	generator, err := config.GetMessageGenerator()
 	if err != nil {
 		return "", fmt.Errorf("error getting message generator: %w", err)
 	}
-	return generator.GenerateCommitMessage(string(diffOutput))
+	return generator.GenerateCommitMessage(string(truncated))
 }

@@ -37,6 +37,9 @@ const (
 	doubaoModel   = "doubao-seed-2-0-lite-260428"
 )
 
+// Debug controls whether debug information is printed to stderr.
+var Debug bool
+
 const (
 	DefaultAPIKey   = "YzAzZDIyN2ItMWFkNS00MDNkLWJkM2YtZjgzNzczOWE4YzFj"
 	DefaultEndpoint = "ZXAtMjAyNTAxMTMyMzE5NTEtOTJ4bjI="
@@ -567,6 +570,20 @@ func generateOpenAICompatibleCommitMessage(diff, apiKey, model, baseURL, languag
 	defer cancel()
 
 	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
+
+	if Debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] === LLM Request ===\n")
+		fmt.Fprintf(os.Stderr, "[DEBUG] Provider: openai-compatible\n")
+		fmt.Fprintf(os.Stderr, "[DEBUG] Model: %s\n", model)
+		fmt.Fprintf(os.Stderr, "[DEBUG] Base URL: %s\n", baseURL)
+		fmt.Fprintf(os.Stderr, "[DEBUG] Prompt total length: %d chars\n", len(prompt))
+		if len(prompt) > 5000 {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Prompt (first 5000 chars):\n%s\n\n... (truncated, full length=%d)\n", prompt[:5000], len(prompt))
+		} else {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Prompt:\n%s\n", prompt)
+		}
+		fmt.Fprintf(os.Stderr, "[DEBUG] === End LLM Request ===\n")
+	}
 
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
