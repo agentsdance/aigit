@@ -49,7 +49,7 @@ const englishPrompt = `Analyze the git diff and output ONLY a valid JSON object 
 - "type": commit type from the list below
 - "scope": affected component (optional, empty string if none)
 - "description": short imperative description (max 72 chars)
-- "body": detailed explanation with bullet points if needed
+- "body": list of strings for detailed explanation, each bullet point as a separate string
 
 Type selection (by priority):
 BREAKING CHANGE: API breaking changes
@@ -68,7 +68,7 @@ Rules:
 - Body should explain WHAT and WHY, not HOW
 - Each line should be less than 72 characters
 
-Example: {"type":"feat","scope":"auth","description":"add user login endpoint","body":"- implement JWT token generation\n- add password hashing"}
+Example: {"type":"feat","scope":"auth","description":"add user login endpoint","body":["implement JWT token generation","add password hashing"]}
 
 IMPORTANT: Output ONLY the JSON object. No other text.
 
@@ -78,7 +78,7 @@ const chinesePrompt = `分析 git diff，只输出一个有效的 JSON 对象，
 - "type": 提交类型，从下方列表选择
 - "scope": 影响范围（可选，没有则填空字符串）
 - "description": 简短的描述
-- "body": 详细的说明，可以用列表
+- "body": 字符串数组，每条占一行
 
 类型选择（按优先级）：
 BREAKING CHANGE: API 不兼容变更
@@ -95,10 +95,10 @@ chore: 维护、版本更新
 
 规则：
 - body 说明 WHAT 和 WHY，不是 HOW
-- 每行不超过 72 个字符
+- 每条不超过 72 个字符
 - description 和 body 必须用中文
 
-示例：{"type":"feat","scope":"auth","description":"添加用户登录接口","body":"- 实现 JWT token 生成\n- 添加密码哈希中间件"}
+示例：{"type":"feat","scope":"auth","description":"添加用户登录接口","body":["实现 JWT token 生成","添加密码哈希中间件"]}
 
 重要：只输出 JSON 对象，不要其他文字。
 
@@ -111,28 +111,11 @@ func getPrompt(language string, _ bool) string {
 	return englishPrompt
 }
 
-type bodyField []string
-
-func (b *bodyField) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 {
-		return nil
-	}
-	if data[0] == '[' {
-		return json.Unmarshal(data, (*[]string)(b))
-	}
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	*b = []string{s}
-	return nil
-}
-
 type CommitData struct {
-	Type        string    `json:"type"`
-	Scope       string    `json:"scope"`
-	Description string    `json:"description"`
-	Body        bodyField `json:"body"`
+	Type        string   `json:"type"`
+	Scope       string   `json:"scope"`
+	Description string   `json:"description"`
+	Body        []string `json:"body"`
 }
 
 func emojiForType(t string) string {
@@ -177,6 +160,9 @@ type commitTemplateData struct {
 func renderCommitMessage(data *CommitData, useEmoji bool) string {
 	body := ""
 	if len(data.Body) > 0 {
+		for i, line := range data.Body {
+			data.Body[i] = "- " + line
+		}
 		body = strings.Join(data.Body, "\n")
 	}
 	tmplData := commitTemplateData{
@@ -205,8 +191,29 @@ func parseAndRenderCommit(raw string, useEmoji bool) (string, error) {
 }
 
 func IsRawCommitJSON(s string) bool {
-	_, err := extractCommitData(s)
-	return err == nil
+	return looksLikeCommitJSON(s)
+}
+
+func looksLikeCommitJSON(s string) bool {
+	cleaned := strings.TrimSpace(s)
+	if idx := strings.Index(cleaned, "```"); idx >= 0 {
+		cleaned = cleaned[idx+3:]
+		if endIdx := strings.LastIndex(cleaned, "```"); endIdx >= 0 {
+			cleaned = cleaned[:endIdx]
+		}
+	}
+	cleaned = strings.TrimSpace(cleaned)
+	cleaned = strings.TrimPrefix(cleaned, "json")
+	cleaned = strings.TrimSpace(cleaned)
+
+	var data struct {
+		Type        string `json:"type"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal([]byte(cleaned), &data); err != nil {
+		return false
+	}
+	return data.Type != "" && data.Description != ""
 }
 
 func extractCommitData(raw string) (*CommitData, error) {

@@ -249,13 +249,20 @@ func main() {
 				provider = config.CurrentProvider
 			}
 
-			// First message generation
 			fmt.Println("\n🤖 Generating commit message by", provider)
 			var commitMessage string
-			commitMessage, err = generateMessage(config, diffOutput)
-			if err != nil {
-				fmt.Printf("Error generating commit message: %v\n", err)
-				exit(ExitLLM)
+			for attempt := 1; attempt <= 3; attempt++ {
+				commitMessage, err = generateMessage(config, diffOutput)
+				if err != nil {
+					fmt.Printf("Error generating commit message: %v\n", err)
+					exit(ExitLLM)
+				}
+				if !llm.IsRawCommitJSON(commitMessage) {
+					break
+				}
+				if attempt < 3 {
+					color.Yellow("⚠️ Response format incorrect (body must be a string list), retrying (%d/3)...", attempt)
+				}
 			}
 
 			if yes {
@@ -337,10 +344,18 @@ func main() {
 					return
 				case 1:
 					fmt.Println("\n🤖 Regenerating commit message...")
-					commitMessage, err = generateMessage(config, diffOutput)
-					if err != nil {
-						fmt.Printf("Error generating commit message: %v\n", err)
-						exit(ExitLLM)
+					for attempt := 1; attempt <= 3; attempt++ {
+						commitMessage, err = generateMessage(config, diffOutput)
+						if err != nil {
+							fmt.Printf("Error generating commit message: %v\n", err)
+							exit(ExitLLM)
+						}
+						if !llm.IsRawCommitJSON(commitMessage) {
+							break
+						}
+						if attempt < 3 {
+							color.Yellow("⚠️ Response format incorrect (body must be a string list), retrying (%d/3)...", attempt)
+						}
 					}
 					continue
 				default:
