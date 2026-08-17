@@ -24,6 +24,10 @@ func main() {
 		Short: "Generate git commit message including title and body",
 		Long:  `AI Git Commi streamlines the git commit process by automatically generating meaningful and standardized commit messages.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			debug, _ := cmd.Flags().GetBool("debug")
+			if debug {
+				llm.Debug = true
+			}
 			updateNotice = startUpdateCheck(Version)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -75,7 +79,7 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			fmt.Println("Configured providers:")
@@ -90,16 +94,16 @@ func main() {
 	}
 
 	authAddCmd := &cobra.Command{
-		Use:                   "add <provider> <api_key> [endpoint_id]",
+		Use:                   "add <provider> <api_key> [model]",
 		Short:                 "Add or update API key for a provider",
-		Long:                  "Add or update API key for a provider. Supported providers: openai, gemini, doubao, deepseek, qwen. For Doubao, an optional endpoint or model ID may be given (defaults to the built-in model)",
+		Long:                  "Add or update API key for a provider. Supported providers: openai, gemini, doubao, deepseek, qwen, openai-compatible. For openai-compatible, both model and --base-url are required.",
 		DisableFlagsInUseLine: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 2 {
 				color.Red("Not enough arguments")
 				color.Red(cmd.Long)
 				color.Red("\nUsage: aigit auth add <provider> <api_key> [endpoint_id]")
-				os.Exit(1)
+				exit(ExitInvalidArgs)
 			}
 
 			provider := strings.ToLower(args[0])
@@ -108,24 +112,41 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			// Validate provider
 			switch provider {
-			case llm.ProviderOpenAI, llm.ProviderGemini, llm.ProviderDeepseek, llm.ProviderQwen, llm.ProviderDoubao:
+			case llm.ProviderOpenAI, llm.ProviderGemini, llm.ProviderDeepseek, llm.ProviderQwen, llm.ProviderDoubao, llm.ProviderOpenAICompatible:
 				if err := config.AddProvider(provider, apiKey, args[2:]...); err != nil {
 					fmt.Printf("Error saving config: %v\n", err)
-					os.Exit(1)
+					exit(ExitConfigSave)
 				}
 			default:
-				fmt.Printf("Unsupported provider: %s\nSupported providers are: openai, gemini, doubao, deepseek, qwen\n", provider)
-				os.Exit(1)
+				fmt.Printf("Unsupported provider: %s\nSupported providers are: openai, gemini, doubao, deepseek, qwen, openai-compatible\n", provider)
+				exit(ExitUnsupportedProvider)
 			}
 
 			color.Green("Successfully added API key for %s", provider)
+
+			if provider == llm.ProviderOpenAICompatible {
+				baseURL, _ := cmd.Flags().GetString("base-url")
+				if baseURL == "" {
+					color.Red("--base-url is required for openai-compatible provider")
+					exit(ExitUnsupportedProvider)
+				}
+				p := config.Providers[provider]
+				p.BaseURL = baseURL
+				config.Providers[provider] = p
+				if err := config.Save(); err != nil {
+					fmt.Printf("Error saving config: %v\n", err)
+					exit(ExitConfigSave)
+				}
+			}
 		},
 	}
+
+	authAddCmd.Flags().String("base-url", "", "API base URL (required for openai-compatible provider)")
 
 	authUseCmd := &cobra.Command{
 		Use:                   "use [provider]",
@@ -138,12 +159,12 @@ func main() {
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			if err := config.UseProvider(provider); err != nil {
 				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
+				exit(ExitUnsupportedProvider)
 			}
 
 			color.Green("Now using %s as the current provider", provider)
@@ -159,52 +180,66 @@ func main() {
 		Use:   "commit",
 		Short: "Generate git commit message including title and body",
 		Run: func(cmd *cobra.Command, args []string) {
+			yes, _ := cmd.Flags().GetBool("yes")
+
 			// Execute git diff --cached command
 			diffOutput, err := exec.Command("git", "diff", "--cached").Output()
 			if err != nil {
 				fmt.Printf("Error getting git diff: %v\n", err)
-				os.Exit(1)
+				exit(ExitGitDiff)
 			}
 
 			// If there are no staged changes
 			if len(diffOutput) == 0 {
-				color.Yellow("No staged changes found.")
-				stagePrompt := promptui.Select{
-					Label: "Would you like to run 'git add .' to stage all changes?",
-					Items: []string{"Yes", "No"},
-					Size:  2,
-				}
-
-				_, stageChoice, err := stagePrompt.Run()
-				if err != nil {
-					fmt.Printf("Error with prompt: %v\n", err)
-					os.Exit(1)
-				}
-
-				if stageChoice == "Yes" {
-					cmd := exec.Command("git", "add", ".")
-					if err := cmd.Run(); err != nil {
+				if yes {
+					if err := exec.Command("git", "add", ".").Run(); err != nil {
 						fmt.Printf("Error staging changes: %v\n", err)
-						os.Exit(1)
+						exit(ExitGitStage)
 					}
 					color.Green("All changes staged successfully!")
-
-					// Re-run git diff to get the newly staged changes
 					diffOutput, err = exec.Command("git", "diff", "--cached").Output()
 					if err != nil {
 						fmt.Printf("Error getting git diff: %v\n", err)
-						os.Exit(1)
+						exit(ExitGitDiff)
 					}
 				} else {
-					color.Red("No changes staged. Please use 'git add' to stage your changes.")
-					os.Exit(1)
+					color.Yellow("No staged changes found.")
+					stagePrompt := promptui.Select{
+						Label: "Would you like to run 'git add .' to stage all changes?",
+						Items: []string{"Yes", "No"},
+						Size:  2,
+					}
+
+					_, stageChoice, err := stagePrompt.Run()
+					if err != nil {
+						fmt.Printf("Error with prompt: %v\n", err)
+						exit(ExitPrompt)
+					}
+
+					if stageChoice == "Yes" {
+						cmd := exec.Command("git", "add", ".")
+						if err := cmd.Run(); err != nil {
+							fmt.Printf("Error staging changes: %v\n", err)
+							exit(ExitGitStage)
+						}
+						color.Green("All changes staged successfully!")
+
+						diffOutput, err = exec.Command("git", "diff", "--cached").Output()
+						if err != nil {
+							fmt.Printf("Error getting git diff: %v\n", err)
+							exit(ExitGitDiff)
+						}
+					} else {
+						color.Red("No changes staged. Please use 'git add' to stage your changes.")
+						exit(ExitUserAbort)
+					}
 				}
 			}
 
 			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
-				os.Exit(1)
+				exit(ExitConfigLoad)
 			}
 
 			var provider string
@@ -214,33 +249,63 @@ func main() {
 				provider = config.CurrentProvider
 			}
 
-			// First message generation
 			fmt.Println("\n🤖 Generating commit message by", provider)
 			var commitMessage string
-			commitMessage, err = generateMessage(config, diffOutput)
-			if err != nil {
-				fmt.Printf("Error generating commit message: %v\n", err)
-				os.Exit(1)
+			for attempt := 1; attempt <= 3; attempt++ {
+				commitMessage, err = generateMessage(config, diffOutput)
+				if err != nil {
+					fmt.Printf("Error generating commit message: %v\n", err)
+					exit(ExitLLM)
+				}
+				if !llm.IsRawCommitJSON(commitMessage) {
+					break
+				}
+				if attempt < 3 {
+					color.Yellow("⚠️ Response format incorrect (body must be a string list), retrying (%d/3)...", attempt)
+				}
+			}
+
+			if yes {
+				if llm.IsRawCommitJSON(commitMessage) {
+					color.Yellow("⚠️ Template parsing failed, using raw response")
+				}
+				cmd := exec.Command("git", "commit", "-m", commitMessage)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					fmt.Printf("Error committing changes: %v\n", err)
+					exit(ExitGitCommit)
+				}
+				fmt.Println("\n" + commitMessage)
+				color.Green("✅ Successfully committed changes!")
+				return
 			}
 
 			for {
-				// Clear some space and show the message in a box
-				fmt.Println("\n📝 Generated commit message:")
+				isRaw := llm.IsRawCommitJSON(commitMessage)
+				if isRaw {
+					color.Yellow("\n⚠️ Template parsing failed, showing raw response:")
+				} else {
+					fmt.Println("\n📝 Generated commit message:")
+				}
 				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 				fmt.Println(commitMessage)
 				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-				fmt.Println("\n🤔 What would you like to do?")
+				items := []string{"Commit this message", "Regenerate message"}
+				if isRaw {
+					items = []string{"Use this anyway", "Regenerate message"}
+				}
 				prompt := promptui.Select{
 					Label: "Choose an action",
-					Items: []string{"Commit this message", "Regenerate message"},
+					Items: items,
 					Size:  2,
 				}
 
 				commitChoice, _, err := prompt.Run()
 				if err != nil {
 					fmt.Printf("Error with prompt: %v\n", err)
-					os.Exit(1)
+					exit(ExitPrompt)
 				}
 
 				switch commitChoice {
@@ -248,7 +313,7 @@ func main() {
 					cmd := exec.Command("git", "commit", "-m", commitMessage)
 					if err := cmd.Run(); err != nil {
 						fmt.Printf("Error committing changes: %v\n", err)
-						os.Exit(1)
+						exit(ExitGitCommit)
 					}
 					color.Green("\n✅ Successfully committed changes!")
 
@@ -261,7 +326,7 @@ func main() {
 					_, pushChoice, err := pushPrompt.Run()
 					if err != nil {
 						fmt.Printf("Error with prompt: %v\n", err)
-						os.Exit(1)
+						exit(ExitPrompt)
 					}
 
 					if pushChoice == "Yes" {
@@ -269,7 +334,7 @@ func main() {
 						output, err := cmd.CombinedOutput()
 						if err != nil {
 							color.Red("Error pushing changes: %v\n%s", err, output)
-							os.Exit(1)
+							exit(ExitGitPush)
 						}
 						fmt.Printf("%s", output)
 						color.Green("✅ Successfully pushed changes to remote repository!")
@@ -279,10 +344,18 @@ func main() {
 					return
 				case 1:
 					fmt.Println("\n🤖 Regenerating commit message...")
-					commitMessage, err = generateMessage(config, diffOutput)
-					if err != nil {
-						fmt.Printf("Error generating commit message: %v\n", err)
-						os.Exit(1)
+					for attempt := 1; attempt <= 3; attempt++ {
+						commitMessage, err = generateMessage(config, diffOutput)
+						if err != nil {
+							fmt.Printf("Error generating commit message: %v\n", err)
+							exit(ExitLLM)
+						}
+						if !llm.IsRawCommitJSON(commitMessage) {
+							break
+						}
+						if attempt < 3 {
+							color.Yellow("⚠️ Response format incorrect (body must be a string list), retrying (%d/3)...", attempt)
+						}
 					}
 					continue
 				default:
@@ -291,6 +364,8 @@ func main() {
 			}
 		},
 	}
+
+	commitCmd.Flags().BoolP("yes", "y", false, "Skip all confirmations and commit directly")
 
 	rootCmd.AddCommand(commitCmd)
 
@@ -319,18 +394,27 @@ func main() {
 		},
 	}
 
+	rootCmd.PersistentFlags().Bool("debug", false, "enable debug logging")
 	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		exit(ExitCommand)
 	}
 }
 
 func generateMessage(config *llm.Config, diffOutput []byte) (string, error) {
+	diff := processBinaryDiff(diffOutput)
+	truncated := truncateDiff(diff)
+
+	if llm.Debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] diff: original=%d bytes, after binary removal=%d, after truncation=%d\n",
+			len(diffOutput), len(diff), len(truncated))
+	}
+
 	generator, err := config.GetMessageGenerator()
 	if err != nil {
 		return "", fmt.Errorf("error getting message generator: %w", err)
 	}
-	return generator.GenerateCommitMessage(string(diffOutput))
+	return generator.GenerateCommitMessage(string(truncated))
 }
