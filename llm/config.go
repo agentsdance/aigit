@@ -10,16 +10,22 @@ import (
 type Provider struct {
 	APIKey   string `json:"api_key"`
 	Endpoint string `json:"endpoint"`
+	BaseURL  string `json:"base_url"`
 }
 
 type Config struct {
 	CurrentProvider string              `json:"current_provider"`
 	Providers       map[string]Provider `json:"providers"`
+	Language        string              `json:"language"`
+	Emoji           bool                `json:"emoji"`
+	Timeout         int                 `json:"timeout"`
 }
 
 func NewConfig() *Config {
 	return &Config{
 		Providers: make(map[string]Provider),
+		Emoji:     true,
+		Timeout:   60,
 	}
 }
 
@@ -29,7 +35,7 @@ func (c *Config) Load() error {
 		return fmt.Errorf("getting home directory: %w", err)
 	}
 
-	configFile := filepath.Join(homeDir, ".aigit", "config.json")
+	configFile := filepath.Join(homeDir, ".config", "aigit", "config.json")
 	configData, err := os.ReadFile(configFile)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -42,6 +48,10 @@ func (c *Config) Load() error {
 		return fmt.Errorf("parsing config file: %w", err)
 	}
 
+	if c.Language == "" {
+		c.Language = detectLanguage()
+	}
+
 	return nil
 }
 
@@ -51,7 +61,7 @@ func (c *Config) Save() error {
 		return fmt.Errorf("getting home directory: %w", err)
 	}
 
-	configDir := filepath.Join(homeDir, ".aigit")
+	configDir := filepath.Join(homeDir, ".config", "aigit")
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
@@ -125,6 +135,8 @@ func providerModel(provider string, p Provider) string {
 		return qwenModel
 	case ProviderDoubao:
 		return doubaoModel
+	case ProviderOpenAICompatible:
+		return "custom"
 	}
 	return "unknown"
 }
@@ -138,23 +150,45 @@ func (c *Config) GetMessageGenerator() (MessageGenerator, error) {
 
 	p, exists := c.Providers[provider]
 	if !exists {
-		// If no provider is configured, use the default one
-		return NewDefauleGenerator()
+		return NewDefauleGenerator(c.Language)
 	}
+
+	lang := c.Language
+	emoji := c.Emoji
+	timeout := c.Timeout
 
 	switch provider {
 	case ProviderGemini:
-		return NewGeminiGenerator(p.APIKey), nil
+		return NewGeminiGenerator(p.APIKey, lang, emoji, timeout), nil
 	case ProviderOpenAI:
-		return NewOpenAIGenerator(p.APIKey), nil
+		return NewOpenAIGenerator(p.APIKey, lang, emoji, timeout), nil
 	case ProviderDoubao:
-		return NewDoubaoGenerator(p.APIKey, p.Endpoint), nil
+		return NewDoubaoGenerator(p.APIKey, p.Endpoint, lang, emoji, timeout), nil
 	case ProviderDeepseek:
-		return NewDeepseekGenerator(p.APIKey), nil
+		return NewDeepseekGenerator(p.APIKey, lang, emoji, timeout), nil
 	case ProviderQwen:
-		return NewQwenGenerator(p.APIKey), nil
+		return NewQwenGenerator(p.APIKey, lang, emoji, timeout), nil
+	case ProviderOpenAICompatible:
+		if p.APIKey == "" {
+			return nil, fmt.Errorf("API key is required for %s provider", provider)
+		}
+		if p.BaseURL == "" {
+			return nil, fmt.Errorf("base URL is required for %s provider", provider)
+		}
+		model := p.Endpoint
+		if model == "" {
+			return nil, fmt.Errorf("model is required for %s provider", provider)
+		}
+		return NewOpenAICompatibleGenerator(p.APIKey, model, p.BaseURL, lang, emoji, timeout), nil
 	default:
-		// If unsupported provider is offered, use the default one
-		return NewDefauleGenerator()
+		return NewDefauleGenerator(c.Language)
 	}
+}
+
+func detectLanguage() string {
+	lang := os.Getenv("LANG")
+	if len(lang) >= 2 && lang[:2] == "zh" {
+		return "zh"
+	}
+	return "en"
 }

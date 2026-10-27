@@ -76,7 +76,7 @@ func replaceBinary(newBin, dst string) error {
 func runQuiet(cmd *exec.Cmd) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

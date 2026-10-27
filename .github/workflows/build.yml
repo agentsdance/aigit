@@ -2,78 +2,103 @@ name: Build and Release aigit
 
 on:
   push:
+    branches:
+      - ycd
+      - master
     tags:
       - 'v*'
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+      - run: go test ./... -v -count=1
+
   build:
-    name: Build Binaries
+    name: Build
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [darwin, windows]
-        arch: [amd64, arm64]
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
         exclude:
-          - os: windows
-            arch: arm64
+          - goos: windows
+            goarch: arm64
+          - goos: linux
+            goarch: arm64
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
         with:
           go-version: '1.23'
 
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Set version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo "VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" >> $GITHUB_ENV
+          fi
 
       - name: Build Binary
         env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
         run: |
-          BINARY_NAME=aigit_${{ matrix.os }}_${{ matrix.arch }}
-          if [ "${{ matrix.os }}" == "windows" ]; then
+          BINARY_NAME=aigit_${{ matrix.goos }}_${{ matrix.goarch }}
+          if [ "${{ matrix.goos }}" == "windows" ]; then
             BINARY_NAME+=".exe"
           fi
-          go build -ldflags "-s -w -X main.Version=${VERSION}" -o $BINARY_NAME main.go
+          go build -ldflags "-s -w -X main.Version=${VERSION}" -o "$BINARY_NAME" .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aigit-${{ matrix.os }}-${{ matrix.arch }}
+          name: aigit-${{ matrix.goos }}-${{ matrix.goarch }}
           path: aigit*
           compression-level: 0
 
   release:
-    needs: build
+    needs: [lint, test, build]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
-          
-      # First, generate the release notes
+
       - name: Draft Release
         id: release_drafter
         uses: release-drafter/release-drafter@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Then, update the release with binary files
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             artifacts/aigit_darwin_amd64
