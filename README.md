@@ -8,6 +8,10 @@ It's a command-line tool that streamlines the git commit process by automaticall
 
 `aigit commit` is as simple as `git commit`.
 
+Use your existing LLM API provider, or let the coding agent you're already using
+generate the message in its current conversation with the
+[aigit skill](skills/aigit/SKILL.md).
+
 ## Supported 🤖 AI Providers
 
 | Provider | Default model |
@@ -68,7 +72,7 @@ chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```shell
 git clone https://github.com/zzxwill/aigit.git
 cd aigit
-go build -o aigit main.go
+go build -o aigit .
 sudo mv aigit /usr/local/bin/aigit
 ```
 
@@ -102,6 +106,65 @@ Enter your choice (press Enter for default):
 
 ✅ Successfully committed changes!
 ```
+
+### Generate with your current coding agent
+
+Install the skill for your coding agent using the
+[Skills CLI](https://github.com/vercel-labs/skills):
+
+```shell
+npx skills add agentsdance/aigit --skill aigit
+```
+
+For a local checkout, use `npx skills add . --skill aigit` instead. The
+installer lets you choose the target agents; add `-g` for installation across
+projects. Install the aigit binary as described above, then ask your agent to
+"Use aigit to generate a commit message" or "Use aigit to commit these changes."
+
+The calling agent generates the message using its current model and session.
+aigit collects the staged changes and formats/applies the result. This flow makes
+no LLM API calls and starts no additional agent process. Your agent's existing
+account and usage limits apply. Any agent that can read the skill and run the CLI
+can use the same workflow; no agent-specific adapter or caller detection is needed.
+Existing API providers, defaults, and the ordinary `aigit commit` flow still work.
+
+The CLI contract is also available directly:
+
+```shell
+git add path/to/intended-file
+aigit prepare --language en
+```
+
+`prepare` prints JSON with `prompt`, `base_tree`, `staged_tree`, `language`, `emoji`,
+and `truncated`. The prompt uses the same commit conventions as API generation.
+Only staged changes are included. When `truncated` is true, inspect the remaining
+staged diff before describing it. The agent generates a JSON response such as:
+
+```json
+{
+  "base_tree": "<copy base_tree from prepare>",
+  "staged_tree": "<copy staged_tree from prepare>",
+  "type": "feat",
+  "scope": "auth",
+  "description": "add session expiration",
+  "body": ["Expire inactive sessions to limit credential reuse"]
+}
+```
+
+Save the response outside the repository, then preview or apply it:
+
+```shell
+aigit commit --from-agent /path/to/response.json --dry-run
+aigit commit --from-agent /path/to/response.json --yes
+# Use --from-agent - to read the same JSON from stdin.
+```
+
+Without `--yes` or `--dry-run`, aigit asks for commit confirmation. `body` must be
+an array of strings. If HEAD's tree or the staged changes differ from the prepared
+snapshot, aigit refuses the response: run `prepare` again and regenerate it. Agent
+mode never stages or pushes, preserves normal Git hooks, and skips automatic
+update checks. Select the message language during `prepare`; rendering respects
+the configured emoji preference.
 
 ### Generate commit message with your own AI API Key
 

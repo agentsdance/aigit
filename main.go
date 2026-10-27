@@ -18,6 +18,13 @@ import (
 var Version = "dev"
 
 func main() {
+	if err := newRootCommand().Execute(); err != nil {
+		fmt.Println(err)
+		exit(ExitCommand)
+	}
+}
+
+func newRootCommand() *cobra.Command {
 	var updateNotice <-chan string
 	rootCmd := &cobra.Command{
 		Use:   "aigit",
@@ -28,9 +35,15 @@ func main() {
 			if debug {
 				llm.Debug = true
 			}
+			if isAgentCommand(cmd) {
+				return
+			}
 			updateNotice = startUpdateCheck(Version)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if isAgentCommand(cmd) {
+				return
+			}
 			select {
 			case latest := <-updateNotice:
 				if latest == "" {
@@ -180,7 +193,13 @@ func main() {
 		Use:   "commit",
 		Short: "Generate git commit message including title and body",
 		Long:  `Generate a git commit message using AI. Use --language (-l) flag to quickly switch language without modifying config.`,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("from-agent") {
+				return runAgentCommit(cmd)
+			}
+			if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
+				return fmt.Errorf("--dry-run requires --from-agent")
+			}
 			yes, _ := cmd.Flags().GetBool("yes")
 			language, _ := cmd.Flags().GetString("language")
 
@@ -238,7 +257,7 @@ func main() {
 				}
 			}
 
-				config := llm.NewConfig()
+			config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
 				exit(ExitConfigLoad)
@@ -285,7 +304,7 @@ func main() {
 				}
 				fmt.Println("\n" + commitMessage)
 				color.Green("✅ Successfully committed changes!")
-				return
+				return nil
 			}
 
 			for {
@@ -348,7 +367,7 @@ func main() {
 					} else {
 						color.Yellow("Changes committed locally. Remember to push when ready.")
 					}
-					return
+					return nil
 				case 1:
 					fmt.Println("\n🤖 Regenerating commit message...")
 					for attempt := 1; attempt <= 3; attempt++ {
@@ -374,8 +393,12 @@ func main() {
 
 	commitCmd.Flags().BoolP("yes", "y", false, "Skip all confirmations and commit directly")
 	commitCmd.Flags().StringP("language", "l", "", "Language for commit message: en or zh (overrides config file)")
+	commitCmd.Flags().String("from-agent", "", "Read the calling agent's commit JSON from a file, or - for stdin (no API call)")
+	commitCmd.Flags().Bool("dry-run", false, "Validate and print a --from-agent message without committing")
+	commitCmd.MarkFlagsMutuallyExclusive("from-agent", "language")
 
 	rootCmd.AddCommand(commitCmd)
+	rootCmd.AddCommand(newPrepareCommand())
 
 	versionCmd := &cobra.Command{
 		Use:     "version",
@@ -405,10 +428,7 @@ func main() {
 	rootCmd.PersistentFlags().Bool("debug", false, "enable debug logging")
 	rootCmd.AddCommand(versionCmd)
 
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		exit(ExitCommand)
-	}
+	return rootCmd
 }
 
 func generateMessage(config *llm.Config, diffOutput []byte) (string, error) {

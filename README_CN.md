@@ -4,6 +4,9 @@
 
 最强大的 Git 提交助手！
 
+既可以继续使用现有的大模型 API，也可以通过
+[aigit 技能](skills/aigit/SKILL.md)，让当前使用的代码智能体在当前对话中生成提交信息。
+
 ## 支持的大模型/AI
 
 | 提供商 | 默认模型 |
@@ -64,7 +67,7 @@ chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```shell
 git clone https://github.com/zzxwill/aigit.git
 cd aigit
-go build -o aigit main.go
+go build -o aigit .
 sudo mv aigit /usr/local/bin/aigit
 ```
 
@@ -98,6 +101,58 @@ Enter your choice (press Enter for default):
 
 ✅ Successfully committed changes!
 ```
+
+### 使用当前代码智能体生成提交信息
+
+通过 [Skills CLI](https://github.com/vercel-labs/skills) 为代码智能体安装技能：
+
+```shell
+npx skills add agentsdance/aigit --skill aigit
+```
+
+本地仓库可以使用 `npx skills add . --skill aigit`。安装器会让您选择目标智能体，
+加上 `-g` 可以跨项目使用。按上面的方式安装 aigit 命令后，告诉智能体：
+“使用 aigit 生成提交信息”或“使用 aigit 提交这些修改”。
+
+技能由调用它的智能体在当前会话中生成信息，使用该智能体现有的模型、账号和额度。
+aigit 负责收集暂存区差异、格式化信息并执行提交，不会调用大模型 API，也不会启动另一个智能体。
+能读取技能并执行 CLI 的智能体都可以使用这套流程，无需识别调用方或配置专用适配器。
+原有 API 提供商、默认配置和 `aigit commit` 流程继续保留。
+
+也可以直接使用 CLI 协议：
+
+```shell
+git add path/to/intended-file
+aigit prepare --language zh
+```
+
+`prepare` 输出 JSON，包含 `prompt`、`base_tree`、`staged_tree`、`language`、`emoji`
+和 `truncated`。提示词沿用现有提交规范，只包含已暂存的修改。若 `truncated` 为 true，
+智能体应先检查被截断的暂存区差异。智能体按提示词生成下面的 JSON，并原样复制两个 tree 字段：
+
+```json
+{
+  "base_tree": "<prepare 返回的 base_tree>",
+  "staged_tree": "<prepare 返回的 staged_tree>",
+  "type": "feat",
+  "scope": "auth",
+  "description": "添加会话过期机制",
+  "body": ["让不活跃的会话过期，限制凭据重复使用"]
+}
+```
+
+将响应保存在仓库之外，然后预览或提交：
+
+```shell
+aigit commit --from-agent /path/to/response.json --dry-run
+aigit commit --from-agent /path/to/response.json --yes
+# 使用 --from-agent - 从标准输入读取同样的 JSON。
+```
+
+不加 `--yes` 或 `--dry-run` 时会询问是否提交。`body` 必须为字符串数组。
+若 HEAD 的 tree 或暂存区快照发生变化，aigit 会拒绝旧响应，需重新执行 `prepare` 并生成信息。
+智能体模式不会自动暂存或推送，会保留 Git hooks，并跳过自动更新检查。
+语言通过 `prepare` 选择，格式化时沿用已配置的 emoji 偏好。
 
 ### 使用自己的 AI API Key 生成提交信息
 
