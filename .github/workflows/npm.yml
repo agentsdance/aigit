@@ -1,0 +1,89 @@
+name: npm Package
+
+on:
+  pull_request:
+    branches: [master]
+    paths: ['npm/**', '.github/workflows/npm.yml']
+  push:
+    branches: [master]
+    paths: ['npm/**', '.github/workflows/npm.yml']
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Published stable GitHub release tag to publish to npm
+        required: true
+        type: string
+  workflow_run:
+    workflows: ['Build and Release aigit']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: '20'
+          - os: ubuntu-latest
+            node: '24'
+          - os: macos-latest
+            node: '22'
+          - os: windows-latest
+            node: '22'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prepare the matching release package
+        env:
+          RELEASE_TAG: ${{ inputs.tag_name || github.event.workflow_run.head_branch }}
+        shell: bash
+        run: node npm/scripts/prepare.cjs "$RELEASE_TAG"
+      - run: npm test --prefix npm
+      - run: npm run test:install --prefix npm
+
+  publish:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: npm-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm install --global npm@11
+      - name: Prepare the matching release package
+        env:
+          RELEASE_TAG: ${{ inputs.tag_name || github.event.workflow_run.head_branch }}
+        shell: bash
+        run: node npm/scripts/prepare.cjs "$RELEASE_TAG"
+      - name: Publish to npm
+        working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance

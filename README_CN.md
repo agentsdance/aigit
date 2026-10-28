@@ -21,7 +21,21 @@
 
 ### 安装
 
-#### 选项 1：Homebrew（推荐）
+#### 选项 1：npm
+
+```shell
+npm install -g @agentsdance/aigit
+aigit version
+```
+
+无需全局安装也可以运行：`npx @agentsdance/aigit commit`。
+
+需要 Node.js 20+ 和 Git，无需安装 Go。npm 包会下载对应版本的预编译程序并
+校验 SHA256，支持 macOS（Apple Silicon 和 Intel）、Linux x64 和 Windows x64。
+禁用安装脚本时，会在首次运行时下载。使用
+`npm install -g @agentsdance/aigit@latest` 更新。
+
+#### 选项 2：Homebrew
 
 ```shell
 # 将仓库添加为tap（使用完整URL）
@@ -38,7 +52,7 @@ brew install --HEAD aigit
 # brew install --formula aigit.rb
 ```
 
-#### 选项 2：下载二进制文件
+#### 选项 3：下载二进制文件
 
 您可以通过以下方式之一安装 aigit：
 
@@ -62,7 +76,7 @@ v0.0.8
 chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```
 
-#### 选项 3：从源码构建
+#### 选项 4：从源码构建
 
 ```shell
 git clone https://github.com/zzxwill/aigit.git

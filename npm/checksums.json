@@ -1,0 +1,9 @@
+{
+  "version": "0.2.0",
+  "assets": {
+    "aigit_darwin_amd64": "6442c7f764ca60e328832bf8f4cde03f6acf879084a634e7af2308932e8039ef",
+    "aigit_darwin_arm64": "c6e06c35e34a0a0efaebde6b34c2511fdb316c8531e301c69ea7f0357a72c316",
+    "aigit_linux_amd64": "f987848045ebe11379df5afcc6679a55bf473617dffc209811c55666bec60219",
+    "aigit_windows_amd64.exe": "36451a348c9e20b62c1f076c3c5721a7680b0c9317e1f93a929b9240d1afb592"
+  }
+}
