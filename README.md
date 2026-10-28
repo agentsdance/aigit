@@ -26,66 +26,68 @@ generate the message in its current conversation with the
 
 ### Installation
 
-#### Option 1: npm
+#### Option 1: npm (Recommended)
+
+Install the published [@agentsdance/aigit](https://www.npmjs.com/package/@agentsdance/aigit) CLI:
 
 ```shell
 npm install -g @agentsdance/aigit
 aigit version
 ```
 
-Or run without a global installation: `npx @agentsdance/aigit commit`.
+Or run without a global installation:
+
+```shell
+npx @agentsdance/aigit commit
+```
 
 Requires Node.js 20+ and Git. The npm package downloads the matching release
 binary and verifies its SHA256 checksum; no Go toolchain is required. Supports
 macOS (Apple Silicon and Intel), Linux x64, and Windows x64. If installation
-scripts are disabled, the binary downloads on first use. Update with
-`npm install -g @agentsdance/aigit@latest`.
+scripts are disabled, the binary downloads on first use. See [updating aigit](#updating-aigit)
+for upgrade instructions.
 
 #### Option 2: Homebrew
 
 ```shell
 # Add the repository as a tap (use full URL)
-brew tap zzxwill/aigit https://github.com/zzxwill/aigit.git
+brew tap agentsdance/aigit https://github.com/agentsdance/aigit.git
 
 # Install stable version (from releases)
 brew install aigit
 
-# Install development version (from dev branch)
+# Install the current master branch
 brew install --HEAD aigit
 
 # Alternative: Install from local formula file
-# curl -O https://raw.githubusercontent.com/zzxwill/aigit/master/Formula/aigit.rb
+# curl -O https://raw.githubusercontent.com/agentsdance/aigit/master/Formula/aigit.rb
 # brew install --formula aigit.rb
 ```
 
-#### Option 3: Download Binary
+#### Option 3: Go
 
-You can install aigit in one of the following ways:
-
-1. Using `go install`:
+Requires Go 1.27.1 or newer.
 
 ```shell
 go install github.com/zzxwill/aigit@latest
+aigit version
 ```
 
-```shell
-$ aigit version
-v0.0.8
-```
+#### Option 4: Download a Binary
 
-2. Download from releases:
-
-- Go to the [releases page](https://github.com/zzxwill/aigit/releases) and download the binary for your platform.
-- Rename the binary to `aigit` and move it to `/usr/local/bin/aigit`.
+Download the binary for your platform from the [latest release](https://github.com/agentsdance/aigit/releases/latest).
+On macOS or Linux, rename it to `aigit` and move it to a directory on your `PATH`, for example:
 
 ```shell
 chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```
 
-#### Option 4: Build from Source
+On Windows, rename `aigit_windows_amd64.exe` to `aigit.exe` and place it in a directory on your `PATH`.
+
+#### Option 5: Build from Source
 
 ```shell
-git clone https://github.com/zzxwill/aigit.git
+git clone https://github.com/agentsdance/aigit.git
 cd aigit
 go build -o aigit .
 sudo mv aigit /usr/local/bin/aigit
@@ -124,7 +126,7 @@ Enter your choice (press Enter for default):
 
 ### Generate with your current coding agent
 
-Install the skill for your coding agent using the
+After [installing the CLI](#installation), install the skill for your coding agent using the
 [Skills CLI](https://github.com/vercel-labs/skills):
 
 ```shell
@@ -133,7 +135,7 @@ npx skills add agentsdance/aigit --skill aigit
 
 For a local checkout, use `npx skills add . --skill aigit` instead. The
 installer lets you choose the target agents; add `-g` for installation across
-projects. Install the aigit binary as described above, then ask your agent to
+projects. The skill installs instructions for your coding agent. Ask your agent to
 "Use aigit to generate a commit message" or "Use aigit to commit these changes."
 
 The calling agent generates the message using its current model and session.
@@ -254,7 +256,19 @@ For Doubao, the provider uses the built-in default model. You can optionally pas
 $ aigit auth add doubao <api_key> ep-20250110202503-fdkgq
 ```
 
-## Update check
+## Updating aigit
+
+### npm installations
+
+```shell
+npm install -g @agentsdance/aigit@latest
+aigit version
+```
+
+npm manages updates for this installation. The npm launcher disables the CLI's
+built-in update prompt, which otherwise requires Homebrew or a Go toolchain.
+
+### Homebrew and other installations
 
 aigit checks for new releases in the background (at most once every 24 hours, cached
 in `~/.aigit/update-check.json`). When a newer version is available, it asks after the

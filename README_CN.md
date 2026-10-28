@@ -21,65 +21,66 @@
 
 ### 安装
 
-#### 选项 1：npm
+#### 选项 1：npm（推荐）
+
+安装已发布的 [@agentsdance/aigit](https://www.npmjs.com/package/@agentsdance/aigit) 命令行工具：
 
 ```shell
 npm install -g @agentsdance/aigit
 aigit version
 ```
 
-无需全局安装也可以运行：`npx @agentsdance/aigit commit`。
+无需全局安装也可以运行：
+
+```shell
+npx @agentsdance/aigit commit
+```
 
 需要 Node.js 20+ 和 Git，无需安装 Go。npm 包会下载对应版本的预编译程序并
 校验 SHA256，支持 macOS（Apple Silicon 和 Intel）、Linux x64 和 Windows x64。
-禁用安装脚本时，会在首次运行时下载。使用
-`npm install -g @agentsdance/aigit@latest` 更新。
+禁用安装脚本时，会在首次运行时下载。升级方式见[更新 aigit](#更新-aigit)。
 
 #### 选项 2：Homebrew
 
 ```shell
 # 将仓库添加为tap（使用完整URL）
-brew tap zzxwill/aigit https://github.com/zzxwill/aigit.git
+brew tap agentsdance/aigit https://github.com/agentsdance/aigit.git
 
 # 安装稳定版本（从releases）
 brew install aigit
 
-# 安装开发版本（从dev分支）
+# 安装 master 分支的当前代码
 brew install --HEAD aigit
 
 # 备选方案：从本地formula文件安装
-# curl -O https://raw.githubusercontent.com/zzxwill/aigit/master/Formula/aigit.rb
+# curl -O https://raw.githubusercontent.com/agentsdance/aigit/master/Formula/aigit.rb
 # brew install --formula aigit.rb
 ```
 
-#### 选项 3：下载二进制文件
+#### 选项 3：Go
 
-您可以通过以下方式之一安装 aigit：
-
-1. 使用 `go install` (当前版本：v0.0.8)：
+需要 Go 1.27.1 或更新版本。
 
 ```shell
 go install github.com/zzxwill/aigit@latest
+aigit version
 ```
 
-```shell
-$ aigit version
-v0.0.8
-```
+#### 选项 4：下载二进制文件
 
-2. 从发布页面下载：
-
-- 前往 [发布页面](https://github.com/zzxwill/aigit/releases) 下载适合您平台的二进制文件。
-- 将二进制文件重命名为 `aigit` 并移动到 `/usr/local/bin/aigit`。
+前往[最新发布页面](https://github.com/agentsdance/aigit/releases/latest)下载适合您平台的二进制文件。
+在 macOS 或 Linux 上，将其重命名为 `aigit`，并移到 `PATH` 中的目录，例如：
 
 ```shell
 chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```
 
-#### 选项 4：从源码构建
+在 Windows 上，将 `aigit_windows_amd64.exe` 重命名为 `aigit.exe`，并放入 `PATH` 中的目录。
+
+#### 选项 5：从源码构建
 
 ```shell
-git clone https://github.com/zzxwill/aigit.git
+git clone https://github.com/agentsdance/aigit.git
 cd aigit
 go build -o aigit .
 sudo mv aigit /usr/local/bin/aigit
@@ -118,14 +119,14 @@ Enter your choice (press Enter for default):
 
 ### 使用当前代码智能体生成提交信息
 
-通过 [Skills CLI](https://github.com/vercel-labs/skills) 为代码智能体安装技能：
+[安装 aigit CLI](#安装) 后，通过 [Skills CLI](https://github.com/vercel-labs/skills) 为代码智能体安装技能：
 
 ```shell
 npx skills add agentsdance/aigit --skill aigit
 ```
 
 本地仓库可以使用 `npx skills add . --skill aigit`。安装器会让您选择目标智能体，
-加上 `-g` 可以跨项目使用。按上面的方式安装 aigit 命令后，告诉智能体：
+加上 `-g` 可以跨项目使用。技能会安装供代码智能体使用的指令。接着告诉智能体：
 “使用 aigit 生成提交信息”或“使用 aigit 提交这些修改”。
 
 技能由调用它的智能体在当前会话中生成信息，使用该智能体现有的模型、账号和额度。
@@ -239,7 +240,19 @@ Enter your choice (press Enter for default): 1
 $ aigit auth add doubao <api_key> ep-20250110202503-fdkgq
 ```
 
-## 版本更新检查
+## 更新 aigit
+
+### npm 安装
+
+```shell
+npm install -g @agentsdance/aigit@latest
+aigit version
+```
+
+通过 npm 管理此安装方式的更新。npm 启动器会禁用 CLI 内置的升级提示，
+该提示原本会通过 Homebrew 或 Go 工具链完成升级。
+
+### Homebrew 和其他安装方式
 
 aigit 会在后台检查新版本（每 24 小时最多一次，结果缓存在 `~/.aigit/update-check.json`）。
 当有新版本可用时，会在命令执行结束后询问是否升级；如果您同意，aigit 会自动完成升级
