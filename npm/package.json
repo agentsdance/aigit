@@ -1,0 +1,42 @@
+{
+  "name": "@agentsdance/aigit",
+  "version": "0.2.0",
+  "description": "AI-powered Git commit messages using your coding agent or LLM provider",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/agentsdance/aigit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentsdance/aigit.git",
+    "directory": "npm"
+  },
+  "bugs": "https://github.com/agentsdance/aigit/issues",
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "cli",
+    "aigit"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "aigit": "bin/aigit.cjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "install.cjs",
+    "checksums.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node install.cjs",
+    "test": "node --test test/install.test.cjs",
+    "test:install": "node scripts/smoke-test.cjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

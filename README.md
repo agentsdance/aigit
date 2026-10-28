@@ -26,7 +26,22 @@ generate the message in its current conversation with the
 
 ### Installation
 
-#### Option 1: Homebrew (Recommended)
+#### Option 1: npm
+
+```shell
+npm install -g @agentsdance/aigit
+aigit version
+```
+
+Or run without a global installation: `npx @agentsdance/aigit commit`.
+
+Requires Node.js 20+ and Git. The npm package downloads the matching release
+binary and verifies its SHA256 checksum; no Go toolchain is required. Supports
+macOS (Apple Silicon and Intel), Linux x64, and Windows x64. If installation
+scripts are disabled, the binary downloads on first use. Update with
+`npm install -g @agentsdance/aigit@latest`.
+
+#### Option 2: Homebrew
 
 ```shell
 # Add the repository as a tap (use full URL)
@@ -43,7 +58,7 @@ brew install --HEAD aigit
 # brew install --formula aigit.rb
 ```
 
-#### Option 2: Download Binary
+#### Option 3: Download Binary
 
 You can install aigit in one of the following ways:
 
@@ -67,7 +82,7 @@ v0.0.8
 chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```
 
-#### Option 3: Build from Source
+#### Option 4: Build from Source
 
 ```shell
 git clone https://github.com/zzxwill/aigit.git
