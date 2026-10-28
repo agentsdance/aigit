@@ -3,6 +3,14 @@ name: Update Homebrew Formula
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Published release tag to update the formula for
+        required: true
+
+permissions:
+  contents: write
 
 jobs:
   update-homebrew:
@@ -12,16 +20,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: master
 
       - name: Get release info
         id: release
+        env:
+          VERSION: ${{ inputs.tag_name || github.event.release.tag_name }}
         run: |
-          VERSION=${{ github.event.release.tag_name }}
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $VERSION" >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           # Download and calculate SHA256
           TARBALL_URL="https://github.com/${{ github.repository }}/archive/refs/tags/$VERSION.tar.gz"
-          SHA256=$(curl -sL "$TARBALL_URL" | sha256sum | cut -d' ' -f1)
+          curl --fail --silent --show-error --location --retry 3 "$TARBALL_URL" -o "$RUNNER_TEMP/aigit-source.tar.gz"
+          SHA256=$(sha256sum "$RUNNER_TEMP/aigit-source.tar.gz" | cut -d' ' -f1)
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
 
       - name: Update Formula
@@ -48,7 +63,7 @@ jobs:
                 -X main.Version=#{version}
               ]
 
-              system "go", "build", *std_go_args(ldflags: ldflags), "./main.go"
+              system "go", "build", *std_go_args(ldflags: ldflags), "."
             end
 
             test do
@@ -70,20 +85,24 @@ jobs:
           end
           EOF
 
-      - name: Commit and push
+      - name: Prepare formula branch for review
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.name "zzxwill"
 
           git add Formula/aigit.rb
 
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
+            git switch -c "chore/homebrew-$VERSION"
             git commit -m "chore: update homebrew formula to ${{ steps.release.outputs.version }}
 
           - Update formula for version ${{ steps.release.outputs.version }}
           - SHA256: ${{ steps.release.outputs.sha256 }}"
 
-            git push origin HEAD
+            git push origin "HEAD:refs/heads/chore/homebrew-$VERSION"
+            echo "Open a draft PR from chore/homebrew-$VERSION to master to publish the formula update." >> "$GITHUB_STEP_SUMMARY"
           fi
