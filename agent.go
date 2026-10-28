@@ -11,6 +11,7 @@ import (
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
+
 	"github.com/zzxwill/aigit/llm"
 )
 
@@ -115,7 +116,7 @@ func runAgentCommit(cmd *cobra.Command) error {
 	if filename == "" {
 		return fmt.Errorf("--from-agent requires a JSON file path or - for stdin")
 	}
-	var reader io.Reader = cmd.InOrStdin()
+	reader := cmd.InOrStdin()
 	if filename != "-" {
 		file, err := os.Open(filename)
 		if err != nil {
