@@ -36,7 +36,7 @@ func agentTestGit(t *testing.T, args ...string) string {
 
 func agentTestWrite(t *testing.T, name, content string) {
 	t.Helper()
-	if err := os.WriteFile(name, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -183,7 +183,7 @@ func TestCommitAgentMessagePreservesGitHooks(t *testing.T) {
 	request := agentTestStageChange(t)
 	head := agentTestGit(t, "rev-parse", "HEAD")
 	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
-	if err := os.WriteFile(hook, []byte("#!/bin/sh\nprintf 'hook rejected commit' >&2\nexit 1\n"), 0700); err != nil {
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nprintf 'hook rejected commit' >&2\nexit 1\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	var stderr bytes.Buffer
