@@ -275,3 +275,17 @@ in `~/.aigit/update-check.json`). When a newer version is available, it asks aft
 command finishes whether to upgrade; if you agree, aigit upgrades itself in place
 (via Homebrew for brew installs, otherwise by building the release from source).
 Set `AIGIT_NO_UPDATE_CHECK=1` to disable the check.
+
+## Contributors
+
+Thanks to everyone who has contributed to aigit.
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/zzxwill"><img src="https://avatars.githubusercontent.com/u/2805315?v=4" width="80" alt="zzxwill" /><br />zzxwill</a></td>
+    <td align="center"><a href="https://github.com/double12gzh"><img src="https://avatars.githubusercontent.com/u/2534467?v=4" width="80" alt="Jeffrey Guan" /><br />Jeffrey Guan</a></td>
+    <td align="center"><a href="https://github.com/bolechen"><img src="https://avatars.githubusercontent.com/u/195015?v=4" width="80" alt="Bole Chen" /><br />Bole Chen</a></td>
+    <td align="center"><a href="https://github.com/YouCD"><img src="https://avatars.githubusercontent.com/u/24710351?v=4" width="80" alt="You ChangDing" /><br />You ChangDing</a></td>
+    <td align="center"><a href="https://github.com/sanjishi"><img src="https://avatars.githubusercontent.com/u/42719702?v=4" width="80" alt="sanjishi" /><br />sanjishi</a></td>
+  </tr>
+</table>

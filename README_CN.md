@@ -258,3 +258,17 @@ aigit 会在后台检查新版本（每 24 小时最多一次，结果缓存在 
 当有新版本可用时，会在命令执行结束后询问是否升级；如果您同意，aigit 会自动完成升级
 （Homebrew 安装的版本通过 brew 升级，其他安装方式则从源码构建新版本并原地替换）。
 设置 `AIGIT_NO_UPDATE_CHECK=1` 可以禁用该功能。
+
+## 贡献者
+
+感谢所有为 aigit 做出贡献的人。
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/zzxwill"><img src="https://avatars.githubusercontent.com/u/2805315?v=4" width="80" alt="zzxwill" /><br />zzxwill</a></td>
+    <td align="center"><a href="https://github.com/double12gzh"><img src="https://avatars.githubusercontent.com/u/2534467?v=4" width="80" alt="Jeffrey Guan" /><br />Jeffrey Guan</a></td>
+    <td align="center"><a href="https://github.com/bolechen"><img src="https://avatars.githubusercontent.com/u/195015?v=4" width="80" alt="Bole Chen" /><br />Bole Chen</a></td>
+    <td align="center"><a href="https://github.com/YouCD"><img src="https://avatars.githubusercontent.com/u/24710351?v=4" width="80" alt="You ChangDing" /><br />You ChangDing</a></td>
+    <td align="center"><a href="https://github.com/sanjishi"><img src="https://avatars.githubusercontent.com/u/42719702?v=4" width="80" alt="sanjishi" /><br />sanjishi</a></td>
+  </tr>
+</table>
